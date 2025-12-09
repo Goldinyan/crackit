@@ -2,12 +2,48 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { useSession } from "./SessionContext";
+import { updateUser } from "../../lib/db";
 
 export default function MainView() {
   const allNumbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  const { session, setSession } = useSession();
   const allLetters = Array.from({ length: 26 }, (_, i) =>
     String.fromCharCode(65 + i)
   );
+
+  useEffect(() => {
+    if (!session) return;
+  
+    // Online setzen beim Log in
+    updateUser(session.user.username, {
+      online: true,
+      lastSeen: new Date(),
+    });
+  
+    // Intervall für checken ob noch online
+    const interval = setInterval(() => {
+      updateUser(session.user.username, {
+        online: true,
+        lastSeen: new Date(),
+      });
+    }, 30000);
+  
+    // Event Listener wenn Tab schließen dann offline
+    const handleUnload = () => {
+      updateUser(session.user.username, {
+        online: false,
+        lastSeen: new Date(),
+      });
+    };
+    window.addEventListener("beforeunload", handleUnload);
+  
+   
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, [session]);
 
   const modes: {
     title: string;
@@ -28,11 +64,11 @@ export default function MainView() {
       pattern: [...allNumbers, ...allLetters],
     },
     {
-        title: "Leaderboard",
-        hint: "Here you can see everyone who is still trying or even suceeded",
-        length: 20,
-        pattern: ["", ""]   
-    }
+      title: "Leaderboard",
+      hint: "Here you can see everyone who is still trying or even suceeded",
+      length: 20,
+      pattern: ["", ""],
+    },
   ];
 
   const [modeIndex, setModeIndex] = useState(0);
@@ -58,9 +94,9 @@ export default function MainView() {
   return (
     <div className="flex h-screen w-full bg-neutral-900 items-center justify-center">
       <div className="flex items-center justify-center">
-        <OverlayContent 
-          current={current} 
-          onLeft={goLeft} 
+        <OverlayContent
+          current={current}
+          onLeft={goLeft}
           onRight={goRight}
           isTransitioning={isTransitioning}
         />
@@ -85,7 +121,12 @@ type OverlayProps = {
 
 type Errors = "Wrong Patter" | "To Much Chars" | "";
 
-function OverlayContent({ current, onLeft, onRight, isTransitioning }: OverlayProps) {
+function OverlayContent({
+  current,
+  onLeft,
+  onRight,
+  isTransitioning,
+}: OverlayProps) {
   const [guess, setGuess] = useState<string[]>(() =>
     Array(current.length).fill("")
   );
@@ -102,7 +143,7 @@ function OverlayContent({ current, onLeft, onRight, isTransitioning }: OverlayPr
     switch (errorType) {
       case "":
         setErrorVisible(false);
-        
+
         break;
       case "To Much Chars":
         setError("You wanted to type too many Chars!");
@@ -172,28 +213,34 @@ function OverlayContent({ current, onLeft, onRight, isTransitioning }: OverlayPr
         </button>
 
         <div className="text-center flex flex-col gap-2 mt-10">
-          <p 
+          <p
             className={`text-xl uppercase tracking-[0.2em] text-neutral-400 transition-all duration-300 ${
-              isTransitioning ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+              isTransitioning
+                ? "opacity-0 translate-y-2"
+                : "opacity-100 translate-y-0"
             }`}
           >
             Modus
           </p>
-          <h2 
+          <h2
             className={`text-4xl font-semibold transition-all duration-300 ${
-              isTransitioning ? "opacity-0 scale-95 translate-y-2" : "opacity-100 scale-100 translate-y-0"
+              isTransitioning
+                ? "opacity-0 scale-95 translate-y-2"
+                : "opacity-100 scale-100 translate-y-0"
             }`}
           >
             {current.title}
           </h2>
-          <p 
+          <p
             className={`text-xl text-neutral-400 transition-all duration-300 delay-75 ${
-              isTransitioning ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+              isTransitioning
+                ? "opacity-0 translate-y-2"
+                : "opacity-100 translate-y-0"
             }`}
           >
             {current.hint}
           </p>
-          <div 
+          <div
             className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${
               isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
             }`}
@@ -202,13 +249,9 @@ function OverlayContent({ current, onLeft, onRight, isTransitioning }: OverlayPr
               <span
                 key={`${current.title}-${i}`}
                 className={`text-4xl font-extrabold text-white transition-all duration-200 ${
-                  g === "" 
-                    ? "opacity-30" 
-                    : "opacity-100"
+                  g === "" ? "opacity-30" : "opacity-100"
                 } ${
-                  lastFilledIndex === i
-                    ? "text-yellow-300 animate-pop"
-                    : ""
+                  lastFilledIndex === i ? "text-yellow-300 animate-pop" : ""
                 }`}
               >
                 {g === "" ? "_" : g}
@@ -224,10 +267,10 @@ function OverlayContent({ current, onLeft, onRight, isTransitioning }: OverlayPr
           <ArrowRight className="transition-transform duration-200 hover:scale-110" />
         </button>
       </div>
-      <div 
+      <div
         className={`absolute bottom-20 left-1/2 -translate-x-1/2 text-red-400 text-sm font-medium transition-all duration-300 ${
-          errorVisible 
-            ? "opacity-100 translate-y-0 scale-100" 
+          errorVisible
+            ? "opacity-100 translate-y-0 scale-100"
             : "opacity-0 translate-y-2 scale-95 pointer-events-none"
         }`}
       >

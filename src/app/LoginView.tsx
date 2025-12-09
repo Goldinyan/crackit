@@ -12,7 +12,10 @@ export default function LoginView() {
     backupEmail: "",
     tries: 0,
     won: 0,
+    online: true,
+    lastSeen: new Date()
   });
+
   const [error, setError] = useState<string>("");
   const [usernameTaken, setUsernameTaken] = useState<boolean>(false);
   const { session, setSession } = useSession();

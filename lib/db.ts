@@ -16,6 +16,8 @@ export type User = {
   backupEmail?: string;
   code?: string;
   codeCreatedAt?: Date;
+  online: boolean;
+  lastSeen: Date;
   tries: number;
   won: number;
 };
@@ -78,10 +80,14 @@ export async function getUserData(username: string): Promise<User | null> {
     backupEmail: data.backupEmail,
     code: data.code,
     codeCreatedAt: data.codeCreatedAt,
+    online: data.online,
+    lastSeen: data.lastSeen,
     tries: data.tries,
     won: data.won,
   };
 }
+
+
 
 export async function addUser(newUser: User) {
   await setDoc(doc(db, "users", newUser.username), {
