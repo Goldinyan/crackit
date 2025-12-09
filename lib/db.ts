@@ -1,3 +1,4 @@
+import { sendEmailVerification } from "firebase/auth";
 import { db } from "./firebase";
 import {
   arrayRemove,
@@ -9,6 +10,7 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { sendVerificationCodePerEmail } from "./email";
 
 export type User = {
   username: string; // username ist id
@@ -128,15 +130,20 @@ export async function deleteUser(username: string) {
 
 type Session = { user: User; loggedIn: boolean };
 
-export async function requestLoginCode(username: string): Promise<void> {
+export async function requestLoginCode(username: string): Promise<string> {
   const userRef = doc(db, "users", username);
   const snapshot = await getDoc(userRef);
   if (!snapshot.exists()) throw new Error("User not found");
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   await updateDoc(userRef, { loginCode: code, loginCodeCreatedAt: Date.now() });
+  const user = (await getAllUsers()).find((user) => user.username === username );
+  
+  if(!user) return "NO USER";
 
-  // await sendEmail(snap.data().email, `Your login code: ${code}`);
+  const email = user?.email
+  sendVerificationCodePerEmail(email, username);
+  return "";
 }
 
 export async function verifyLoginCode(
