@@ -20,9 +20,9 @@ export async function sendEmail(to: string, subject: string, html: string) {
   }
 
 
-  export async function sendVerificationCodePerEmail(to: string, username: string){
+  export async function sendVerificationCodePerEmail(to: string, username: string, code: string){
     const subject = `${username}, this is your verification code:`;
-    const html = `${requestLoginCode(username)}, If you didnt send it dont care`;
+    const html = `${code}, If you didnt send it dont care`;
     
     await sendEmail(to, subject, html);
 }

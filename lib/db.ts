@@ -1,4 +1,3 @@
-import { sendEmailVerification } from "firebase/auth";
 import { db } from "./firebase";
 import {
   arrayRemove,
@@ -11,15 +10,17 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { sendVerificationCodePerEmail } from "./email";
+import { Timestamp } from "firebase/firestore";
+
 
 export type User = {
   username: string; // username ist id
   email: string;
   backupEmail?: string;
-  code?: string;
-  codeCreatedAt?: Date;
+  code: string | null;
+  codeCreatedAt: Timestamp | null;
   online: boolean;
-  lastSeen: Date;
+  lastSeen: Timestamp;
   tries: number;
   won: number;
 };
@@ -139,10 +140,11 @@ export async function requestLoginCode(username: string): Promise<string> {
   await updateDoc(userRef, { loginCode: code, loginCodeCreatedAt: Date.now() });
   const user = (await getAllUsers()).find((user) => user.username === username );
   
+  await updateUser(username, {code: code});
   if(!user) return "NO USER";
 
   const email = user?.email
-  sendVerificationCodePerEmail(email, username);
+  sendVerificationCodePerEmail(email, username, code);
   return "";
 }
 
@@ -155,14 +157,17 @@ export async function verifyLoginCode(
 
   const storedCode = data.code;
   const createdAt = data.codeCreatedAt;
-
+  console.log(data);
+  console.log(storedCode);
+  console.log(code);
   // Time valid yk
   const isExpired = Date.now() - Number(createdAt) > 5 * 60 * 1000;
   if (isExpired) throw new Error("Code expired");
   if (storedCode !== code) throw new Error("Invalid code");
 
   // invalidate code when success
-  updateUser(username, { code: undefined, codeCreatedAt: undefined });
+  await updateUser(username, {code: null, codeCreatedAt: null});
+  
 
   return {
     user: data,
