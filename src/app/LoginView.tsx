@@ -159,6 +159,7 @@ function Login({
           <p className="text-xl text-neutral-400 transition-all duration-300 delay-75 opacity-100 translate-y-0">
             Enter your details to get started
           </p>
+        
         </div>
 
         <div className="w-full flex flex-col gap-6">

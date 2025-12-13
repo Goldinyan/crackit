@@ -12,7 +12,6 @@ import {
 import { sendVerificationCodePerEmail } from "./email";
 import { Timestamp } from "firebase/firestore";
 
-
 export type User = {
   username: string; // username ist id
   email: string;
@@ -23,9 +22,11 @@ export type User = {
   lastSeen: Timestamp;
   tries: number;
   won: number;
+  wonLevel: string[];
 };
 
 export type Level = {
+  id: string;
   solution: string;
   tries: number;
   participants: Record<string, number>;
@@ -49,7 +50,18 @@ export async function getAllLevelsOfLevel(level: string): Promise<Level[]> {
   const levelPrefix = "Level " + level;
 
   const snapshot = await getDocs(collection(db, levelPrefix));
-  return snapshot.docs.map((doc) => ({ ...doc.data() } as Level));
+  return snapshot.docs.map((doc) => ({ ...doc.data() }) as Level);
+}
+
+export async function getAllLevels(): Promise<Level[]> {
+  const allLevels: Level[] = [];
+
+  for (const num of ["1", "2", "3", "4"]) {
+    const levels = await getAllLevelsOfLevel(num);
+    allLevels.push(...levels);
+  }
+
+  return allLevels;
 }
 
 export async function getCurrentLevel(level: string): Promise<Level | null> {
@@ -68,7 +80,7 @@ export async function getCurrentLevel(level: string): Promise<Level | null> {
 
 export async function getAllUsers(): Promise<User[]> {
   const snapshot = await getDocs(collection(db, "users"));
-  return snapshot.docs.map((doc) => ({ ...doc.data() } as User));
+  return snapshot.docs.map((doc) => ({ ...doc.data() }) as User);
 }
 
 export async function getUserData(username: string): Promise<User | null> {
@@ -87,10 +99,9 @@ export async function getUserData(username: string): Promise<User | null> {
     lastSeen: data.lastSeen,
     tries: data.tries,
     won: data.won,
+    wonLevel: data.wonLevel,
   };
 }
-
-
 
 export async function addUser(newUser: User) {
   await setDoc(doc(db, "users", newUser.username), {
@@ -138,19 +149,19 @@ export async function requestLoginCode(username: string): Promise<string> {
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   await updateDoc(userRef, { loginCode: code, loginCodeCreatedAt: Date.now() });
-  const user = (await getAllUsers()).find((user) => user.username === username );
-  
-  await updateUser(username, {code: code});
-  if(!user) return "NO USER";
+  const user = (await getAllUsers()).find((user) => user.username === username);
 
-  const email = user?.email
+  await updateUser(username, { code: code });
+  if (!user) return "NO USER";
+
+  const email = user?.email;
   sendVerificationCodePerEmail(email, username, code);
   return "";
 }
 
 export async function verifyLoginCode(
   username: string,
-  code: string
+  code: string,
 ): Promise<Session | null> {
   const data = await getUserData(username);
   if (data === null) return null;
@@ -166,8 +177,7 @@ export async function verifyLoginCode(
   if (storedCode !== code) throw new Error("Invalid code");
 
   // invalidate code when success
-  await updateUser(username, {code: null, codeCreatedAt: null});
-  
+  await updateUser(username, { code: null, codeCreatedAt: null });
 
   return {
     user: data,

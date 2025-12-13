@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useSession } from "./SessionContext";
 import { updateUser } from "../../lib/db";
 import LoginView from "./LoginView";
 import OverlayContent from "./OverlayContent";
 import { Timestamp } from "firebase/firestore";
+import LoadingScreen from "./components/LoadingScreen";
 
 
 export default function MainView() {
   const allNumbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
-  const { session, setSession, loading } = useSession();
+  const { session, loading } = useSession();
   const [ownLoading, setOwnLoading] = useState<boolean>(true);
   const allLetters = Array.from({ length: 26 }, (_, i) =>
     String.fromCharCode(65 + i)
@@ -20,8 +20,7 @@ export default function MainView() {
   console.log(session);
 
   useEffect(() => {
-    if (!loading) return;
-
+    
     const interval = setInterval(() => {
       setOwnLoading(false);
     }, 1000);
@@ -29,10 +28,11 @@ export default function MainView() {
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [loading]);
+
   useEffect(() => {
     if (session === null) return;
-
+    
     // Online setzen beim Log in
     updateUser(session.user.username, {
       online: true,
@@ -107,20 +107,9 @@ export default function MainView() {
       setIsTransitioning(false);
     }, 150);
   };
-
   if (ownLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-neutral-900">
-        <div className="flex flex-col items-center">
-          {/* Spinner */}
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-
-          {/* Text */}
-          <p className="mt-4 text-lg font-semibold text-blue-400 tracking-wide">
-            Loading...
-          </p>
-        </div>
-      </div>
+     <LoadingScreen /> 
     );
   }
 
