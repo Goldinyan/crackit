@@ -15,13 +15,14 @@ export default function LeaderboardView({
   onRight: () => void;
   sortedUsers: User[];
 }) {
-
   const [directUser, setDirectUser] = useState<User | null>(null);
-  
-  if(directUser !== null){
 
-    return <UserView user={directUser} goBack={() => setDirectUser(null)}/>
-
+  if (directUser !== null) {
+    return (
+      <div className="min-h-full w-full">
+        <UserView user={directUser} goBack={() => setDirectUser(null)} />
+      </div>
+    );
   }
 
   return (
