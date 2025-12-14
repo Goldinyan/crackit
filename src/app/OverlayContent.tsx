@@ -1,17 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAllUsers, User } from "../../lib/db";
+import {
+  getAllUsers,
+  User,
+  SolutionPattern,
+  getCurrentLevel,
+  updateUser,
+} from "../../lib/db";
 import NavigationButton from "./components/NavigationButton";
 import SectionHeader from "./components/SectionHeader";
 import ErrorMessage from "./components/ErrorMessage";
 import LeaderboardView from "./components/LeaderboardView";
+import { Session, useSession } from "./SessionContext";
 
 type Mode = {
+  id: number;
   title: string;
   hint: string;
   length: number;
-  pattern: string[];
+  pattern: SolutionPattern;
 };
 
 type OverlayProps = {
@@ -30,13 +38,23 @@ export default function OverlayContent({
   isTransitioning,
 }: OverlayProps) {
   const [guess, setGuess] = useState<string[]>(() =>
-    Array(current.length).fill("")
+    Array(current.length).fill(""),
   );
+  const [solution, setSolution] = useState<string[]>();
   const [error, setError] = useState<string>("");
   const [errorVisible, setErrorVisible] = useState(false);
   const [lastFilledIndex, setLastFilledIndex] = useState<number>(-1);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const { session } = useSession();
 
+  useEffect(() => {
+    const fetchCurrentSolution = async () => {
+      const level = await getCurrentLevel(current.id.toString());
+      setSolution(level.solution);
+    };
+
+    fetchCurrentSolution();
+  }, [current]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -109,6 +127,10 @@ export default function OverlayContent({
           return next;
         });
       }
+
+      if (e.key === "Enter") {
+        trySolution();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -123,8 +145,12 @@ export default function OverlayContent({
     });
 
     return (
-      <LeaderboardView onRight={onRight} onLeft={onLeft} sortedUsers={sortedUsers} />
-    )
+      <LeaderboardView
+        onRight={onRight}
+        onLeft={onLeft}
+        sortedUsers={sortedUsers}
+      />
+    );
   }
   return (
     <div className="transition-all duration-300 items-center justify-center  absolute inset-0 z-30 flex flex-col ">
@@ -139,18 +165,15 @@ export default function OverlayContent({
             isTransitioning={isTransitioning}
           />
           <div
-            className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${
-              isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
-            }`}
+            className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
+              }`}
           >
             {guess.map((g, i) => (
               <span
                 key={`${current.title}-${i}`}
-                className={`text-4xl font-extrabold text-white transition-all duration-200 ${
-                  g === "" ? "opacity-30" : "opacity-100"
-                } ${
-                  lastFilledIndex === i ? "text-yellow-300 animate-pop" : ""
-                }`}
+                className={`text-4xl font-extrabold text-white transition-all duration-200 ${g === "" ? "opacity-30" : "opacity-100"
+                  } ${lastFilledIndex === i ? "text-yellow-300 animate-pop" : ""
+                  }`}
               >
                 {g === "" ? "_" : g}
               </span>
@@ -167,4 +190,25 @@ export default function OverlayContent({
       />
     </div>
   );
+}
+
+async function trySolution({
+  session,
+  levelId,
+  guess,
+}: {
+  session: Session;
+  levelId: number;
+  guess: string[];
+}) {
+  if (!session) {
+    return;
+  }
+  await updateUser(session?.user.username, {
+    tries: session?.user.tries + 1,
+  });
+  const level = await getCurrentLevel(levelId.toString());
+  if(guess === level.solution){
+    
+  }
 }

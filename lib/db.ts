@@ -27,26 +27,74 @@ export type User = {
 
 export type Level = {
   id: string;
-  solution: string;
+  solution: string[];
   tries: number;
   participants: Record<string, number>;
   solver: [string, number]; // username ist id
 };
 
+export const solutionPatterns = [
+  "NUMBERS8",
+  "NUMBERS/CHARS10",
+  "NUMBERS12",
+  "NUMBERS/CHARS16",
+] as const;
+
+export type SolutionPattern = typeof solutionPatterns[number];
+
+// SOLUTION CREATION
+
+function createSolution(solutionPattern: SolutionPattern): string[] {
+  const password: string[] = [];
+  const chars =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+  switch (solutionPattern) {
+    case "NUMBERS8":
+      for (let i = 0; i < 8; i++) {
+        password.push(Math.floor(Math.random() * 10).toString());
+      }
+      break;
+    case "NUMBERS12":
+      for (let i = 0; i < 12; i++) {
+        password.push(Math.floor(Math.random() * 10).toString());
+      }
+      break;
+    case "NUMBERS/CHARS10":
+      for (let i = 0; i < 10; i++) {
+        const randomIndex = Math.floor(Math.random() * chars.length);
+        password.push(chars[randomIndex]);
+      }
+    case "NUMBERS/CHARS16":
+      for (let i = 0; i < 16; i++) {
+        const randomIndex = Math.floor(Math.random() * chars.length);
+        password.push(chars[randomIndex]);
+      }
+  }
+
+  return password;
+}
+
 // LEVEL
 
-export async function addLevel(level: string, solution: string): Promise<void> {
-  const levelPrefix = "Level " + level;
-  const levelNumber = "Level" + (await getAllLevelsOfLevel(level)).length;
-  await setDoc(doc(db, levelPrefix, levelNumber), {
-    solution: solution,
+export async function addLevel(
+  typeId: string,
+  solutionPattern: SolutionPattern,
+): Promise<void> {
+  const existingLevels = await getAllLevelsOfType(typeId);
+  const levelNumber = existingLevels.length + 1;
+
+  const solution = createSolution(solutionPattern);
+
+  await setDoc(doc(db, "levels", typeId, "entries", levelNumber.toString()), {
+    solution,
     tries: 0,
     participants: [],
     solver: [],
   });
 }
 
-export async function getAllLevelsOfLevel(level: string): Promise<Level[]> {
+export async function getAllLevelsOfType(level: string): Promise<Level[]> {
   const levelPrefix = "Level " + level;
 
   const snapshot = await getDocs(collection(db, levelPrefix));
@@ -57,23 +105,28 @@ export async function getAllLevels(): Promise<Level[]> {
   const allLevels: Level[] = [];
 
   for (const num of ["1", "2", "3", "4"]) {
-    const levels = await getAllLevelsOfLevel(num);
+    const levels = await getAllLevelsOfType(num);
     allLevels.push(...levels);
   }
 
   return allLevels;
 }
 
-export async function getCurrentLevel(level: string): Promise<Level | null> {
+export async function getCurrentLevel(level: string): Promise<Level> {
   const levelPrefix = "Level" + level;
   const snapshot = await getDocs(collection(db, levelPrefix));
   const levels: Level[] = snapshot.docs.map((doc) => ({
     ...(doc.data() as Level),
   }));
 
-  const firstWithoutSolver = levels.find((lvl) => !lvl.solver);
+  let firstWithoutSolver = levels.find((lvl) => !lvl.solver);
 
-  return firstWithoutSolver ?? null;
+  if (!firstWithoutSolver) {
+    await addLevel(level, solutionPatterns[Number(level)]);
+    firstWithoutSolver = await getCurrentLevel(level);
+  }
+
+  return firstWithoutSolver;
 }
 
 //MARK: USER
