@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User } from "../../lib/db";
 
-type Session = { user: User; loggedIn: boolean };
+export type Session = { user: User; loggedIn: boolean };
 
 const SessionContext = createContext<{
   session: Session | null;

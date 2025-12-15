@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { addUser, getAllUsers } from "../../lib/db";
+import { addUser, doesUserExist } from "../../lib/db";
 import type { User } from "../../lib/db";
 import { useSession } from "./SessionContext";
 import { LogIn } from "lucide-react";
@@ -12,13 +12,13 @@ export default function LoginView() {
   const [userInfo, setUserInfo] = useState<User>({
     username: "",
     email: "",
-    backupEmail: "",
     code: null,
     codeCreatedAt: null,
+    online: false,
+    lastSeen: null,
     tries: 0,
     won: 0,
-    online: true,
-    lastSeen: Timestamp.now(),
+    wonLevel: []
   });
 
   const [error, setError] = useState<string>("");
@@ -36,15 +36,14 @@ export default function LoginView() {
 
     const checkUsername = async () => {
       if (userInfo.username.length >= 5) {
-        const users = await getAllUsers();
-        const taken = users.some((user) => user.username === userInfo.username);
+        const taken = await doesUserExist(userInfo.username);
         if (taken) {
           setError("Username is already taken!");
           setErrorVisible(true);
-        } else {
-          setError("");
-          setErrorVisible(false);
+          return;
         }
+        setError("");
+        setErrorVisible(false);
       }
     };
 
@@ -79,8 +78,7 @@ export default function LoginView() {
       return;
     }
 
-    const users = await getAllUsers();
-    const taken = users.some((user) => user.username === userInfo.username);
+    const taken = await doesUserExist(userInfo.username);
     if (taken) {
       setError("Username is already taken!");
       setErrorVisible(true);

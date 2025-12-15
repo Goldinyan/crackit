@@ -1,6 +1,5 @@
 import { db } from "./firebase";
 import {
-  arrayRemove,
   collection,
   getDocs,
   deleteDoc,
@@ -8,18 +7,24 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  serverTimestamp,
+  runTransaction,
+  query,
+  where,
+  limit,
 } from "firebase/firestore";
+import { increment } from "firebase/firestore";
 import { sendVerificationCodePerEmail } from "./email";
-import { Timestamp } from "firebase/firestore";
+import type { Timestamp, FieldValue } from "firebase/firestore";
 
 export type User = {
   username: string; // username ist id
   email: string;
   backupEmail?: string;
   code: string | null;
-  codeCreatedAt: Timestamp | null;
+  codeCreatedAt: number | null;
   online: boolean;
-  lastSeen: Timestamp;
+  lastSeen: Timestamp | FieldValue | null;
   tries: number;
   won: number;
   wonLevel: string[];
@@ -30,7 +35,7 @@ export type Level = {
   solution: string[];
   tries: number;
   participants: Record<string, number>;
-  solver: [string, number]; // username ist id
+  solver: string | null; // username ist id
 };
 
 export const solutionPatterns = [
@@ -40,7 +45,7 @@ export const solutionPatterns = [
   "NUMBERS/CHARS16",
 ] as const;
 
-export type SolutionPattern = typeof solutionPatterns[number];
+export type SolutionPattern = (typeof solutionPatterns)[number];
 
 // SOLUTION CREATION
 
@@ -77,27 +82,46 @@ function createSolution(solutionPattern: SolutionPattern): string[] {
 
 // LEVEL
 
+export async function updateLevel(typeId: string, id: string, updates: Partial<Level>) {
+  try {
+    const ref = doc(db, "levels", typeId, "entries", id);
+    await updateDoc(ref, updates);
+  } catch (err) {
+    console.error("Fehler beim Aktualisieren von einem Level", err);
+    throw err;
+  }
+}
+
+
 export async function addLevel(
   typeId: string,
   solutionPattern: SolutionPattern,
-): Promise<void> {
-  const existingLevels = await getAllLevelsOfType(typeId);
-  const levelNumber = existingLevels.length + 1;
+): Promise<Level> {
+  const counterRef = doc(db, "levelCounters", typeId);
+
+  //  hochzählen
+  await setDoc(counterRef, { value: increment(1) }, { merge: true });
+
+  // Den aktuellen Wert zurücklesen
+  const counterSnap = await getDoc(counterRef);
+  const levelNumber = Number(counterSnap.data()?.value);
 
   const solution = createSolution(solutionPattern);
 
-  await setDoc(doc(db, "levels", typeId, "entries", levelNumber.toString()), {
+  const newLevel: Level = {
+    id: levelNumber.toString(),
     solution,
     tries: 0,
-    participants: [],
-    solver: [],
-  });
+    participants: {},
+    solver: null,
+  };
+
+  await setDoc(doc(db, "levels", typeId, "entries", levelNumber.toString()), newLevel);
+  return newLevel;
 }
 
 export async function getAllLevelsOfType(level: string): Promise<Level[]> {
-  const levelPrefix = "Level " + level;
-
-  const snapshot = await getDocs(collection(db, levelPrefix));
+  const snapshot = await getDocs(collection(db, "levels", level, "entries"));
   return snapshot.docs.map((doc) => ({ ...doc.data() }) as Level);
 }
 
@@ -113,20 +137,15 @@ export async function getAllLevels(): Promise<Level[]> {
 }
 
 export async function getCurrentLevel(level: string): Promise<Level> {
-  const levelPrefix = "Level" + level;
-  const snapshot = await getDocs(collection(db, levelPrefix));
-  const levels: Level[] = snapshot.docs.map((doc) => ({
-    ...(doc.data() as Level),
-  }));
+  const levelCollection = collection(db, "levels", level, "entries");
+  const snapshot = await getDocs(query(levelCollection, where("solver", "==", null), limit(1)));
 
-  let firstWithoutSolver = levels.find((lvl) => !lvl.solver);
-
-  if (!firstWithoutSolver) {
-    await addLevel(level, solutionPatterns[Number(level)]);
-    firstWithoutSolver = await getCurrentLevel(level);
+  if (!snapshot.empty) {
+    return snapshot.docs[0].data() as Level;
   }
 
-  return firstWithoutSolver;
+  const newLevel = await addLevel(level, solutionPatterns[Number(level)]);
+  return newLevel;
 }
 
 //MARK: USER
@@ -156,12 +175,20 @@ export async function getUserData(username: string): Promise<User | null> {
   };
 }
 
+export async function doesUserExist(username: string): Promise<boolean> {
+  const snapshot = await getDoc(doc(db, "users", username));
+  return snapshot.exists();
+}
+
 export async function addUser(newUser: User) {
   await setDoc(doc(db, "users", newUser.username), {
     username: newUser.username,
     email: newUser.email,
     backupEmail: newUser.backupEmail,
     code: "",
+    codeCreatedAt: null,
+    online: false,
+    lastSeen: serverTimestamp(),
     tries: 0,
     won: 0,
   });
@@ -201,14 +228,16 @@ export async function requestLoginCode(username: string): Promise<string> {
   if (!snapshot.exists()) throw new Error("User not found");
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  await updateDoc(userRef, { loginCode: code, loginCodeCreatedAt: Date.now() });
-  const user = (await getAllUsers()).find((user) => user.username === username);
+  const user = snapshot.data() as User;
 
-  await updateUser(username, { code: code });
-  if (!user) return "NO USER";
+  await updateDoc(userRef, {
+    loginCode: code,
+    loginCodeCreatedAt: Date.now(),
+    code,
+    codeCreatedAt: Date.now(),
+  });
 
-  const email = user?.email;
-  sendVerificationCodePerEmail(email, username, code);
+  sendVerificationCodePerEmail(user.email, username, code);
   return "";
 }
 

@@ -5,7 +5,7 @@ import { useSession } from "./SessionContext";
 import { updateUser, SolutionPattern } from "../../lib/db";
 import LoginView from "./LoginView";
 import OverlayContent from "./OverlayContent";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, serverTimestamp } from "firebase/firestore";
 import LoadingScreen from "./components/LoadingScreen";
 
 
@@ -28,33 +28,42 @@ export default function MainView() {
 
   useEffect(() => {
     if (session === null) return;
-    
-    // Online setzen beim Log in
-    updateUser(session.user.username, {
-      online: true,
-      lastSeen: Timestamp.now() 
-    });
 
-    // Intervall für checken ob noch online
-    const interval = setInterval(() => {
+    const updatePresence = (online: boolean) =>
       updateUser(session.user.username, {
-        online: true,
-        lastSeen: Timestamp.now(),
+        online,
+        lastSeen: serverTimestamp() as unknown as Timestamp,
       });
-    }, 30000);
+
+    // Online setzen beim Log in
+    updatePresence(true);
+
+    // Selteneres Heartbeat nur wenn Tab sichtbar
+    // const interval = setInterval(() => {
+    //   if (document.visibilityState === "visible") {
+    //     updatePresence(true);
+    //   }
+    // }, 120000);
+
+    // const handleVisibility = () => {
+    //   if (document.visibilityState === "visible") {
+    //     updatePresence(true);
+    //   }
+    // };
 
     // Event Listener wenn Tab schließen dann offline
     const handleUnload = () => {
-      updateUser(session.user.username, {
-        online: false,
-        lastSeen: Timestamp.now(),
-      });
+      updatePresence(false);
     };
+
+    // document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("beforeunload", handleUnload);
 
     return () => {
-      clearInterval(interval);
+      //clearInterval(interval);
+      //document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("beforeunload", handleUnload);
+      updatePresence(false);
     };
   }, [session]);
 
@@ -66,34 +75,34 @@ export default function MainView() {
     pattern: SolutionPattern; 
   }[] = [
     {
-      id: 1,
+      id: 0,
       title: "Level 1",
       hint: "8 Numbers",
       length: 8,
       pattern: "NUMBERS8"    },
     {
-        id: 2,
+        id: 1,
       title: "Level 2",
       hint: "10 Number & Letters",
       length: 10,
       pattern: "NUMBERS/CHARS10",
     },
       {
-        id: 3,
+        id: 2,
         title: "Level 3",
         hint: "12 Numbers",
         length: 12,
         pattern: "NUMBERS12"
       },
       {
-        id: 4,
+        id: 3,
         title: "Level 4",
         hint: "16 Numbers & Letters",
         length: 16,
         pattern: "NUMBERS/CHARS16"
       },
     {
-        id: 5,
+        id: 4,
       title: "Leaderboard",
       hint: "Here you can see everyone who is still trying or even suceeded",
       length: 20,

@@ -7,6 +7,7 @@ import {
   SolutionPattern,
   getCurrentLevel,
   updateUser,
+  updateLevel,
 } from "../../lib/db";
 import NavigationButton from "./components/NavigationButton";
 import SectionHeader from "./components/SectionHeader";
@@ -37,7 +38,7 @@ export default function OverlayContent({
   onRight,
   isTransitioning,
 }: OverlayProps) {
-  const [guess, setGuess] = useState<string[]>(() =>
+  const [ownGuess, setOwnGuess] = useState<string[]>(() =>
     Array(current.length).fill(""),
   );
   const [solution, setSolution] = useState<string[]>();
@@ -50,6 +51,7 @@ export default function OverlayContent({
   useEffect(() => {
     const fetchCurrentSolution = async () => {
       const level = await getCurrentLevel(current.id.toString());
+      console.log(level ?? "NO LEVEL");
       setSolution(level.solution);
     };
 
@@ -66,7 +68,7 @@ export default function OverlayContent({
   }, []);
 
   useEffect(() => {
-    setGuess(Array(current.length).fill(""));
+    setOwnGuess(Array(current.length).fill(""));
     setLastFilledIndex(-1);
   }, [current]);
 
@@ -96,11 +98,23 @@ export default function OverlayContent({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const pattern: string[] = [];
+
+
+      if (current.pattern === "NUMBERS8" || current.pattern === "NUMBERS12") {
+        pattern.push("1", "2", "3", "4", "5", "6", "7", "8", "9", "0");
+      } else {
+        for (let i = 65; i <= 90; i++) {
+          pattern.push(String.fromCharCode(i)); // A–Z
+        }
+      }
+
       updateError("");
       const key = e.key.toUpperCase();
 
-      if (current.pattern.includes(key)) {
-        setGuess((prev) => {
+
+      if (pattern.includes(key)) {
+        setOwnGuess((prev) => {
           const next = [...prev];
 
           const idx = next.findIndex((c) => c === "");
@@ -113,12 +127,12 @@ export default function OverlayContent({
           }
           return next;
         });
-      } else if (key !== "BACKSPACE" && key.length === 1) {
+      } else if (key !== "BACKSPACE") {
         updateError("Wrong Patter");
       }
 
       if (e.key === "Backspace") {
-        setGuess((prev) => {
+        setOwnGuess((prev) => {
           const next = [...prev];
           const idx = next.findLastIndex((c) => c !== "");
           if (idx !== -1) {
@@ -128,14 +142,16 @@ export default function OverlayContent({
         });
       }
 
+      if (!session) return;
+
       if (e.key === "Enter") {
-        trySolution();
+        trySolution(session, current.id.toString(), ownGuess);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [current]);
+  }, [ownGuess, session, current]);
 
   if (current.title === "Leaderboard") {
     const sortedUsers = [...allUsers].sort((a, b) => {
@@ -164,11 +180,13 @@ export default function OverlayContent({
             subtitle={current.hint}
             isTransitioning={isTransitioning}
           />
+        <p className="text-center font-bold text-white">{solution ?? "NO SOLUTION"}</p>
+
           <div
             className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
               }`}
           >
-            {guess.map((g, i) => (
+            {ownGuess.map((g, i) => (
               <span
                 key={`${current.title}-${i}`}
                 className={`text-4xl font-extrabold text-white transition-all duration-200 ${g === "" ? "opacity-30" : "opacity-100"
@@ -192,23 +210,25 @@ export default function OverlayContent({
   );
 }
 
-async function trySolution({
-  session,
-  levelId,
-  guess,
-}: {
-  session: Session;
-  levelId: number;
-  guess: string[];
-}) {
+async function trySolution(session: Session, typeId: string, guess: string[]) {
   if (!session) {
     return;
   }
   await updateUser(session?.user.username, {
     tries: session?.user.tries + 1,
   });
-  const level = await getCurrentLevel(levelId.toString());
-  if(guess === level.solution){
-    
+  const level = await getCurrentLevel(typeId.toString());
+  if (arraysEqual(guess, level.solution)) {
+    updateUser(session.user.username, {won: session.user.won + 1});
+    updateLevel(typeId, level.id, { solver: session.user.username });
+    console.log("Solved");
+    return;
   }
+  console.log("Not Solved");
+  console.log(level.solution + " !== " + guess );
+}
+
+
+function arraysEqual(a: string[], b: string[]) {
+  return a.length === b.length && a.every((val, i) => val === b[i]);
 }
