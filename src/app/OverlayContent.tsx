@@ -51,7 +51,6 @@ export default function OverlayContent({
   useEffect(() => {
     const fetchCurrentSolution = async () => {
       const level = await getCurrentLevel(current.id.toString());
-      console.log(level ?? "NO LEVEL");
       setSolution(level.solution);
     };
 

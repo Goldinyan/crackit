@@ -99,12 +99,17 @@ export async function addLevel(
 ): Promise<Level> {
   const counterRef = doc(db, "levelCounters", typeId);
 
+  const counterSnap = await getDoc(counterRef);
+
+  console.log(counterSnap.data()?.value);
+
   //  hochzählen
   await setDoc(counterRef, { value: increment(1) }, { merge: true });
 
   // Den aktuellen Wert zurücklesen
-  const counterSnap = await getDoc(counterRef);
   const levelNumber = Number(counterSnap.data()?.value);
+
+  console.log(levelNumber);
 
   const solution = createSolution(solutionPattern);
 
@@ -115,6 +120,7 @@ export async function addLevel(
     participants: {},
     solver: null,
   };
+  console.log(levelNumber);
 
   await setDoc(doc(db, "levels", typeId, "entries", levelNumber.toString()), newLevel);
   return newLevel;

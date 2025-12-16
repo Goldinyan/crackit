@@ -61,8 +61,7 @@ export default function VerifyScreen() {
     setIsLoading(true);
     try {
       const session = await verifyLoginCode(username, code);
-      console.log(session);
-
+      
       if (session) {
         setSession(session);
       } else {

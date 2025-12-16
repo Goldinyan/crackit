@@ -13,7 +13,6 @@ export default function MainView() {
   const { session, loading } = useSession();
   const [ownLoading, setOwnLoading] = useState<boolean>(true);
 
-  console.log(session);
 
   useEffect(() => {
     
@@ -81,7 +80,7 @@ export default function MainView() {
       length: 8,
       pattern: "NUMBERS8"    },
     {
-        id: 1,
+      id: 1,
       title: "Level 2",
       hint: "10 Number & Letters",
       length: 10,
