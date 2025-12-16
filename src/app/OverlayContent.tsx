@@ -8,12 +8,15 @@ import {
   getCurrentLevel,
   updateUser,
   updateLevel,
+  Level,
 } from "../../lib/db";
 import NavigationButton from "./components/NavigationButton";
 import SectionHeader from "./components/SectionHeader";
 import ErrorMessage from "./components/ErrorMessage";
 import LeaderboardView from "./components/LeaderboardView";
 import { Session, useSession } from "./SessionContext";
+import LoadingScreen from "./components/LoadingScreen";
+import { Timestamp } from "firebase/firestore";
 
 type Mode = {
   id: number;
@@ -39,23 +42,53 @@ export default function OverlayContent({
   isTransitioning,
 }: OverlayProps) {
   const [ownGuess, setOwnGuess] = useState<string[]>(() =>
-    Array(current.length).fill(""),
+    Array(current.length).fill("")
   );
   const [solution, setSolution] = useState<string[]>();
   const [error, setError] = useState<string>("");
   const [errorVisible, setErrorVisible] = useState(false);
   const [lastFilledIndex, setLastFilledIndex] = useState<number>(-1);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [level, setLevel] = useState<Level>();
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const { session } = useSession();
 
   useEffect(() => {
     const fetchCurrentSolution = async () => {
       const level = await getCurrentLevel(current.id.toString());
       setSolution(level.solution);
+      setLevel(level);
     };
 
     fetchCurrentSolution();
   }, [current]);
+
+  // Timer Logic
+  useEffect(() => {
+    if (!level?.delay) {
+      setTimeRemaining(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = Timestamp.now();
+      const delayTimestamp = level.delay!;
+
+      //Firestore Timestamp zu milliseconds
+      const nowMs = now.toMillis();
+      const delayMs = delayTimestamp.toMillis();
+      const remaining = Math.max(0, Math.floor((delayMs - nowMs) / 1000));
+
+      setTimeRemaining(remaining);
+    };
+
+    updateTimer();
+
+    // alle sekunde updaten
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [level?.delay]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -99,7 +132,6 @@ export default function OverlayContent({
     const handleKeyDown = (e: KeyboardEvent) => {
       const pattern: string[] = [];
 
-
       if (current.pattern === "NUMBERS8" || current.pattern === "NUMBERS12") {
         pattern.push("1", "2", "3", "4", "5", "6", "7", "8", "9", "0");
       } else {
@@ -110,7 +142,6 @@ export default function OverlayContent({
 
       updateError("");
       const key = e.key.toUpperCase();
-
 
       if (pattern.includes(key)) {
         setOwnGuess((prev) => {
@@ -167,6 +198,11 @@ export default function OverlayContent({
       />
     );
   }
+
+  if (level === undefined) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="transition-all duration-300 items-center justify-center  absolute inset-0 z-30 flex flex-col ">
       <div className="flex items-center justify-between w-full">
@@ -179,23 +215,56 @@ export default function OverlayContent({
             subtitle={current.hint}
             isTransitioning={isTransitioning}
           />
-        <p className="text-center font-bold text-white">{solution ?? "NO SOLUTION"}</p>
-
-          <div
-            className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
+          <p className="text-center font-bold text-white">
+            {solution ?? "NO SOLUTION"}
+          </p>
+          {level.delay === null || timeRemaining <= 0 ? (
+            <div
+              className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${
+                isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
               }`}
-          >
-            {ownGuess.map((g, i) => (
-              <span
-                key={`${current.title}-${i}`}
-                className={`text-4xl font-extrabold text-white transition-all duration-200 ${g === "" ? "opacity-30" : "opacity-100"
-                  } ${lastFilledIndex === i ? "text-yellow-300 animate-pop" : ""
+            >
+              {ownGuess.map((g, i) => (
+                <span
+                  key={`${current.title}-${i}`}
+                  className={`text-4xl font-extrabold text-white transition-all duration-200 ${
+                    g === "" ? "opacity-30" : "opacity-100"
+                  } ${
+                    lastFilledIndex === i ? "text-yellow-300 animate-pop" : ""
                   }`}
-              >
-                {g === "" ? "_" : g}
-              </span>
-            ))}
-          </div>
+                >
+                  {g === "" ? "_" : g}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 flex flex-col items-center justify-center">
+              <div className="relative">
+                <div className="absolute inset-0 w-90 md:w-120 lg:w-150 rounded-full bg-linear-to-r from-yellow-400 via-orange-500 to-red-500 opacity-20 blur-xl animate-pulse-glow"></div>
+
+                <div className="relative border-4 w-90 md:w-120 lg:w-150 border-neutral-600 rounded-full p-8 md:p-12 bg-neutral-800/50 backdrop-blur-sm">
+                  <div className="relative z-10  flex flex-col items-center justify-center min-w-[120px] md:min-w-[160px]">
+                    <div className="text-5xl flex items-center justify-center   md:text-7xl font-black text-transparent bg-clip-text bg-linear-to-r from-yellow-400 via-orange-500 to-red-500 tabular-nums">
+                      {Math.floor(timeRemaining / 60)}:
+                      {(timeRemaining % 60).toString().padStart(2, "0")}
+                    </div>
+                    <div className="text-sm md:text-base text-neutral-400 uppercase tracking-wider mt-2">
+                      {timeRemaining > 60 ? "Minutes" : "Seconds"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <p className="text-lg md:text-xl font-semibold text-white mb-2">
+                  Level is getting created.
+                </p>
+                <p className="text-[14px]  text-neutral-400">
+                  Please wait till the timer is finished.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <NavigationButton direction="right" onClick={onRight} />
@@ -218,15 +287,14 @@ async function trySolution(session: Session, typeId: string, guess: string[]) {
   });
   const level = await getCurrentLevel(typeId.toString());
   if (arraysEqual(guess, level.solution)) {
-    updateUser(session.user.username, {won: session.user.won + 1});
+    updateUser(session.user.username, { won: session.user.won + 1 });
     updateLevel(typeId, level.id, { solver: session.user.username });
     console.log("Solved");
     return;
   }
   console.log("Not Solved");
-  console.log(level.solution + " !== " + guess );
+  console.log(level.solution + " !== " + guess);
 }
-
 
 function arraysEqual(a: string[], b: string[]) {
   return a.length === b.length && a.every((val, i) => val === b[i]);

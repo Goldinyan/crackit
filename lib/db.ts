@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { increment } from "firebase/firestore";
 import { sendVerificationCodePerEmail } from "./email";
-import type { Timestamp, FieldValue } from "firebase/firestore";
+import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type User = {
   username: string; // username ist id
@@ -36,6 +36,7 @@ export type Level = {
   tries: number;
   participants: Record<string, number>;
   solver: string | null; // username ist id
+  delay: Timestamp | null;
 };
 
 export const solutionPatterns = [
@@ -80,9 +81,38 @@ function createSolution(solutionPattern: SolutionPattern): string[] {
   return password;
 }
 
+function getDelayTime(solutionPattern: SolutionPattern): Timestamp {
+  let future: Date;
+  const now: Date = new Date();
+
+  switch (solutionPattern) {
+    case "NUMBERS/CHARS10":
+      future = new Date(now.getTime() + 5 * 60 * 1000);
+      return Timestamp.fromDate(future);
+    case "NUMBERS8":
+      future = new Date(now.getTime() + 10 * 60 * 1000);
+      return Timestamp.fromDate(future);
+      break;
+    case "NUMBERS/CHARS16":
+      future = new Date(now.getTime() + 15 * 60 * 1000);
+      return Timestamp.fromDate(future);
+      break;
+    case "NUMBERS12":
+      future = new Date(now.getTime() + 20 * 60 * 1000);
+      return Timestamp.fromDate(future);
+      break;
+    default:
+      return Timestamp.now();
+  }
+}
+
 // LEVEL
 
-export async function updateLevel(typeId: string, id: string, updates: Partial<Level>) {
+export async function updateLevel(
+  typeId: string,
+  id: string,
+  updates: Partial<Level>
+) {
   try {
     const ref = doc(db, "levels", typeId, "entries", id);
     await updateDoc(ref, updates);
@@ -92,18 +122,18 @@ export async function updateLevel(typeId: string, id: string, updates: Partial<L
   }
 }
 
-
 export async function addLevel(
   typeId: string,
-  solutionPattern: SolutionPattern,
+  solutionPattern: SolutionPattern
 ): Promise<Level> {
-  const counterRef = doc(db, "levelCounters", typeId);
+  const delay: Timestamp = getDelayTime(solutionPattern);
 
+  const counterRef = doc(db, "levelCounters", typeId);
   const counterSnap = await getDoc(counterRef);
 
   console.log(counterSnap.data()?.value);
 
-  //  hochzählen
+  // hochzählen
   await setDoc(counterRef, { value: increment(1) }, { merge: true });
 
   // Den aktuellen Wert zurücklesen
@@ -111,24 +141,24 @@ export async function addLevel(
 
   console.log(levelNumber);
 
-  const solution = createSolution(solutionPattern);
-
-  const newLevel: Level = {
+  const level: Level = {
     id: levelNumber.toString(),
-    solution,
+    solution: createSolution(solutionPattern),
     tries: 0,
     participants: {},
     solver: null,
+    delay,
   };
-  console.log(levelNumber);
 
-  await setDoc(doc(db, "levels", typeId, "entries", levelNumber.toString()), newLevel);
-  return newLevel;
+  const ref = doc(db, "levels", typeId, "entries", level.id);
+  await setDoc(ref, level);
+
+  return level;
 }
 
 export async function getAllLevelsOfType(level: string): Promise<Level[]> {
   const snapshot = await getDocs(collection(db, "levels", level, "entries"));
-  return snapshot.docs.map((doc) => ({ ...doc.data() }) as Level);
+  return snapshot.docs.map((doc) => ({ ...doc.data() } as Level));
 }
 
 export async function getAllLevels(): Promise<Level[]> {
@@ -144,7 +174,9 @@ export async function getAllLevels(): Promise<Level[]> {
 
 export async function getCurrentLevel(level: string): Promise<Level> {
   const levelCollection = collection(db, "levels", level, "entries");
-  const snapshot = await getDocs(query(levelCollection, where("solver", "==", null), limit(1)));
+  const snapshot = await getDocs(
+    query(levelCollection, where("solver", "==", null), limit(1))
+  );
 
   if (!snapshot.empty) {
     return snapshot.docs[0].data() as Level;
@@ -158,7 +190,7 @@ export async function getCurrentLevel(level: string): Promise<Level> {
 
 export async function getAllUsers(): Promise<User[]> {
   const snapshot = await getDocs(collection(db, "users"));
-  return snapshot.docs.map((doc) => ({ ...doc.data() }) as User);
+  return snapshot.docs.map((doc) => ({ ...doc.data() } as User));
 }
 
 export async function getUserData(username: string): Promise<User | null> {
@@ -249,7 +281,7 @@ export async function requestLoginCode(username: string): Promise<string> {
 
 export async function verifyLoginCode(
   username: string,
-  code: string,
+  code: string
 ): Promise<Session | null> {
   const data = await getUserData(username);
   if (data === null) return null;
