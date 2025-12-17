@@ -14,6 +14,8 @@ import NavigationButton from "./components/NavigationButton";
 import SectionHeader from "./components/SectionHeader";
 import ErrorMessage from "./components/ErrorMessage";
 import LeaderboardView from "./components/LeaderboardView";
+import GuessDisplay from "./components/GuessDisplay";
+import LevelTimerDisplay from "./components/LevelTimerDisplay";
 import { Session, useSession } from "./SessionContext";
 import LoadingScreen from "./components/LoadingScreen";
 import { Timestamp } from "firebase/firestore";
@@ -219,51 +221,14 @@ export default function OverlayContent({
             {solution ?? "NO SOLUTION"}
           </p>
           {level.delay === null || timeRemaining <= 0 ? (
-            <div
-              className={`border flex md:gap-10 md:p-10 p-4 gap-4 rounded-2xl border-gray-400 mt-10 transition-all duration-500 ${
-                isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
-              }`}
-            >
-              {ownGuess.map((g, i) => (
-                <span
-                  key={`${current.title}-${i}`}
-                  className={`text-4xl font-extrabold text-white transition-all duration-200 ${
-                    g === "" ? "opacity-30" : "opacity-100"
-                  } ${
-                    lastFilledIndex === i ? "text-yellow-300 animate-pop" : ""
-                  }`}
-                >
-                  {g === "" ? "_" : g}
-                </span>
-              ))}
-            </div>
+            <GuessDisplay
+              ownGuess={ownGuess}
+              currentTitle={current.title}
+              lastFilledIndex={lastFilledIndex}
+              isTransitioning={isTransitioning}
+            />
           ) : (
-            <div className="mt-10 flex flex-col items-center justify-center">
-              <div className="relative">
-                <div className="absolute inset-0 w-90 md:w-120 lg:w-150 rounded-full bg-linear-to-r from-yellow-400 via-orange-500 to-red-500 opacity-20 blur-xl animate-pulse-glow"></div>
-
-                <div className="relative border-4 w-90 md:w-120 lg:w-150 border-neutral-600 rounded-full p-8 md:p-12 bg-neutral-800/50 backdrop-blur-sm">
-                  <div className="relative z-10  flex flex-col items-center justify-center min-w-[120px] md:min-w-[160px]">
-                    <div className="text-5xl flex items-center justify-center   md:text-7xl font-black text-transparent bg-clip-text bg-linear-to-r from-yellow-400 via-orange-500 to-red-500 tabular-nums">
-                      {Math.floor(timeRemaining / 60)}:
-                      {(timeRemaining % 60).toString().padStart(2, "0")}
-                    </div>
-                    <div className="text-sm md:text-base text-neutral-400 uppercase tracking-wider mt-2">
-                      {timeRemaining > 60 ? "Minutes" : "Seconds"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <p className="text-lg md:text-xl font-semibold text-white mb-2">
-                  Level is getting created.
-                </p>
-                <p className="text-[14px]  text-neutral-400">
-                  Please wait till the timer is finished.
-                </p>
-              </div>
-            </div>
+            <LevelTimerDisplay timeRemaining={timeRemaining} />
           )}
         </div>
 
@@ -290,6 +255,7 @@ async function trySolution(session: Session, typeId: string, guess: string[]) {
     updateUser(session.user.username, { won: session.user.won + 1 });
     updateLevel(typeId, level.id, { solver: session.user.username });
     console.log("Solved");
+    window.location.reload();
     return;
   }
   console.log("Not Solved");
